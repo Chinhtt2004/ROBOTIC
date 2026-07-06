@@ -103,16 +103,22 @@ void updateAutomaticObstacleAvoidance() {
 			motorRun(-OA_BACK_SPEED_LOW, -OA_BACK_SPEED_LOW);	//Move back a little
 			delay(100);
 			if (distance[0] > distance[2]) {			//Left distance is greater than right distance
-				motorRun(-OA_ROTATY_SPEED_LOW, OA_ROTATY_SPEED_LOW);
+				motorRun(0, 0);
+				delay(30);
+				motorRun(-OA_ROTATY_SPEED_HIGH, OA_ROTATY_SPEED_HIGH);
 			}
 			else {										//Right distance is greater than left distance
-				motorRun(OA_ROTATY_SPEED_LOW, -OA_ROTATY_SPEED_LOW);
+				motorRun(0, 0);
+				delay(30);
+				motorRun(OA_ROTATY_SPEED_HIGH, -OA_ROTATY_SPEED_HIGH);
 			}
 		}
 		else {											//Get into the dead corner, move back a little, then spin.
 			motorRun(-OA_BACK_SPEED_HIGH, -OA_BACK_SPEED_HIGH);
 			delay(100);
-			motorRun(-OA_ROTATY_SPEED_NORMAL, OA_ROTATY_SPEED_NORMAL);
+			motorRun(0, 0);
+			delay(30);
+			motorRun(-OA_ROTATY_SPEED_HIGH, OA_ROTATY_SPEED_HIGH);
 		}
 	}
 	else {												//No obstacles ahead
@@ -131,7 +137,18 @@ void updateAutomaticObstacleAvoidance() {
 			motorRun(OA_TURN_SPEED_LV1, OA_TURN_SPEED_LV4);
 		}
 		else {												//Cruising
-			motorRun(OA_CRUISE_SPEED, OA_CRUISE_SPEED);
+			int speed = OA_CRUISE_SPEED;
+			if (distance[1] < 50) {
+				speed = 80;
+			} else if (distance[1] < 70) {
+				speed = 120;
+			} else if (distance[1] < 90) {
+				speed = 160;
+			} else {
+				speed = OA_CRUISE_SPEED;
+			}
+
+			motorRun(speed + oa_VoltageCompensationToSpeed, speed + oa_VoltageCompensationToSpeed);
 		}
 	}
 
