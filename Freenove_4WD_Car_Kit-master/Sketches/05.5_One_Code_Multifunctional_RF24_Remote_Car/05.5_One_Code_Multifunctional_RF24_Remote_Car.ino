@@ -10,7 +10,6 @@
 #include "Servo.h"
 #include "RF24.h"
 #include <FlexiTimer2.h>
-
 #define PIN_SERVO      2
 #define MOTOR_DIRECTION     0 //If the direction is reversed, change 0 to 1
 #define PIN_DIRECTION_LEFT  4
@@ -324,8 +323,7 @@ void loop() {
       break;
   }
 }
-
-/////////
+ 
 void servoSetup() {
   getServoOffsetFromEEPROM();
   servo.attach(PIN_SERVO);
