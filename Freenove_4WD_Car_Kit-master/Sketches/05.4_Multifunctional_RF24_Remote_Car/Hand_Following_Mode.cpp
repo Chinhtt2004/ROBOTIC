@@ -1,5 +1,6 @@
 #include "Hand_Following_Mode.h"
 #include "Freenove_4WD_Car_for_Arduino.h"
+#include "Automatic_Obstacle_Avoidance_Mode.h"
 
 void updateHandFollowingMode() {
   int distanceCm = (int)getSonar();
