@@ -10,6 +10,7 @@
 #include "Freenove_4WD_Car_for_Arduino.h"
 #include "Freenove_WS2812B_RGBLED_Controller.h"
 #include "RF24_Remote.h"
+#include "Hand_Following_Mode.h"
 
 #define NRF_UPDATE_TIMEOUT    1000
 
@@ -110,6 +111,7 @@ void loop() {
           }
           break;
         case ON_OFF_ON:
+          updateHandFollowingMode();
           break;
         case ON_OFF_OFF:    ////Sonic Obstacle Avoidance Mode, S1 is ON and S2, S3 are OFF
           updateAutomaticObstacleAvoidance();
