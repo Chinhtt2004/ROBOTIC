@@ -59,7 +59,6 @@ void updateHandFollowingMode() {
     // resetCarAction();
     motorRun(0, 0);
     // setBuzzer(false);
-    return;
   }
 
 
@@ -74,9 +73,9 @@ void updateHandFollowingMode() {
 			// 	speed = 180;
 			// }
 
-  if (error < 0) {
+  if (error < -3) {
     motorRun(speed, speed);
-  } else if (error > 0) {
+  } else if (error > 3) {
     motorRun(-speed, -speed);
   }
 }

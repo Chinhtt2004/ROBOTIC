@@ -8,5 +8,5 @@
 #define HAND_FOLLOW_MAX_SPEED 140
 
 void updateHandFollowingMode();
-
+  
 #endif
