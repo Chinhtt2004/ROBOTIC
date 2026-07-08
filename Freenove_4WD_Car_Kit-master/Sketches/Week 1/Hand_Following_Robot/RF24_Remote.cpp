@@ -25,27 +25,11 @@ bool nrf24L01Setup() {
 // and freeze the whole board (servo/sonar/RF timing all depend on them).
 void updateNrf24L01Data() {
   nrfComplete = false;
-  
-  /* --- ĐÃ COMMENT BỎ (KHÔNG DÙNG NRF24) ---
   if (radio.available()) {             // if receive the data
     while (radio.available()) {         // read all the data
       radio.read(nrfDataRead, sizeof(nrfDataRead));   // read data
     }
     nrfComplete = true;
-  }
-  ----------------------------------------- */
-  
-  // --- THÊM MỚI: Đọc dữ liệu với Thuật toán chốt đồng bộ (Sync Header) ---
-  // Chống lỗi xe bị điên / còi kêu liên tục do mất đồng bộ byte khi chế độ né vật cản gây trễ
-  while (Serial.available() >= 16) {
-    if (Serial.read() == 0xAA) {           // Tìm byte 1 của cờ 0x55AA
-      if (Serial.peek() == 0x55) {         // Tìm byte 2
-        Serial.read();                     // Bỏ qua byte 0x55 trong buffer
-        nrfDataRead[0] = 0x55AA;           // Khôi phục POT1
-        Serial.readBytes((char*)&nrfDataRead[1], 14); // Đọc 14 byte còn lại
-        nrfComplete = true;
-      }
-    }
   }
 }
 

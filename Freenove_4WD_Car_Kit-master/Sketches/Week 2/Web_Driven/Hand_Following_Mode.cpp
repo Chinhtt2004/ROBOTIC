@@ -64,15 +64,15 @@ void updateHandFollowingMode() {
 
 
   int speed = 180;
-			if (distanceCm < 50) {
-				speed = 120;
-			} else if (distanceCm < 70) {
-				speed = 140;
-			} else if (distanceCm < 90) {
-				speed = 160;
-			} else {
-				speed = 180;
-			}
+			// if (distanceCm < 50) {
+			// 	speed = 120;
+			// } else if (distanceCm < 70) {
+			// 	speed = 140;
+			// } else if (distanceCm < 90) {
+			// 	speed = 160;
+			// } else {
+			// 	speed = 180;
+			// }
 
   if (error < 0) {
     motorRun(speed, speed);
