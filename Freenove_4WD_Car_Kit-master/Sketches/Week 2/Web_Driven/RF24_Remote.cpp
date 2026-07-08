@@ -35,14 +35,19 @@ void updateNrf24L01Data() {
   }
   ----------------------------------------- */
   
-  // --- THÊM MỚI: Đọc dữ liệu với Thuật toán chốt đồng bộ (Sync Header) ---
-  // Chống lỗi xe bị điên / còi kêu liên tục do mất đồng bộ byte khi chế độ né vật cản gây trễ
-  while (Serial.available() >= 16) {
-    if (Serial.read() == 0xAA) {           // Tìm byte 1 của cờ 0x55AA
-      if (Serial.peek() == 0x55) {         // Tìm byte 2
-        Serial.read();                     // Bỏ qua byte 0x55 trong buffer
-        nrfDataRead[0] = 0x55AA;           // Khôi phục POT1
-        Serial.readBytes((char*)&nrfDataRead[1], 14); // Đọc 14 byte còn lại
+  // --- THÊM MỚI: Đọc dữ liệu với Thuật toán chốt đồng bộ (Sync Header) 18 bytes ---
+  // Giải thích thuật toán:
+  // - Khung truyền mới có 18 byte: [0xAA] [0x55] [16 byte dữ liệu gốc (POT1, POT2, JoyX...)]
+  // - Nếu bộ đệm bị tràn và có các byte rác (do xe bị trễ ở chế độ né vật cản), vòng lặp while 
+  //   sẽ liên tục dùng Serial.read() để vứt bỏ từng byte rác một.
+  // - Nó chỉ dừng vứt khi "mò" thấy đúng 2 byte liên tiếp là 0xAA và 0x55.
+  // - Khi đã thấy 0xAA và 0x55, nó tự tin đọc trọn vẹn 16 byte tiếp theo, đảm bảo khớp 100%.
+  while (Serial.available() >= 18) {
+    if (Serial.read() == 0xAA) {           // Tìm byte 1 của cờ (0xAA)
+      if (Serial.peek() == 0x55) {         // Nhìn thử xem byte tiếp theo có phải 0x55 không
+        Serial.read();                     // Đúng là 0x55 rồi, đọc để lấy nó ra khỏi buffer luôn
+        // Đọc trọn vẹn 16 byte gốc vào mảng nrfDataRead (Bảo toàn được POT1 và POT2)
+        Serial.readBytes((char*)nrfDataRead, 16); 
         nrfComplete = true;
       }
     }
