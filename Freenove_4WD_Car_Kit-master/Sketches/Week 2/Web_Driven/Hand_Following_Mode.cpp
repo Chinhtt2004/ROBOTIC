@@ -18,65 +18,151 @@ static int readSonarAveragedCm() {
   return (int)(sum / validCount);
 }
 
+// Quay servo tới một góc (độ, 90 = giữa xe) và đọc khoảng cách tại đó.
+static int sampleAtAngle(int angleDeg) {
+  delay(HAND_FOLLOW_SERVO_PRE_DELAY_MS);
+  servo.write(constrain(angleDeg + servoOffset, 0, 180));
+  delay(HAND_FOLLOW_SERVO_SETTLE_MS);
+  return readSonarAveragedCm();
+}
+
+static bool isValidHandDistance(int distanceCm) {
+  return distanceCm > 0 && distanceCm < HAND_FOLLOW_MAX_DETECT_DISTANCE;
+}
+
+// Quét toàn dải góc, bắt đầu từ giữa và mở rộng dần ra hai bên, để tìm lại
+// tay khi cả 3 hướng bám gần đều không thấy gì. Trả về góc servo tìm thấy
+// tay, hoặc -1 nếu quét hết mà không thấy.
+static int scanForHand() {
+  if (isValidHandDistance(sampleAtAngle(90))) {
+    return 90;
+  }
+  for (int offset = HAND_FOLLOW_LOST_SCAN_STEP; offset <= HAND_FOLLOW_LOST_SCAN_MAX_OFFSET;
+       offset += HAND_FOLLOW_LOST_SCAN_STEP) {
+    int rightAngle = 90 - offset;
+    int leftAngle = 90 + offset;
+    if (isValidHandDistance(sampleAtAngle(rightAngle))) {
+      return rightAngle;
+    }
+    if (isValidHandDistance(sampleAtAngle(leftAngle))) {
+      return leftAngle;
+    }
+  }
+  return -1;
+}
+
+// Xoay tại chỗ hướng về góc servo đã phát hiện tay. Thời gian xoay tỉ lệ với
+// độ lệch so với hướng giữa xe, để lệch càng nhiều thì xoay càng lâu.
+static void turnTowardAngle(int angleDeg) {
+  int offset = angleDeg - 90;
+  if (offset == 0) {
+    return;
+  }
+  int steps = abs(offset) / HAND_FOLLOW_SCAN_ANGLE_INTERVAL;
+  if (steps < 1) {
+    steps = 1;
+  }
+  int turnMs = HAND_FOLLOW_TURN_STEP_MS * steps;
+  if (offset > 0) {
+    // Tay ở góc servo > 90 (bên trái) -> xoay trái.
+    motorRun(-HAND_FOLLOW_TURN_SPEED, HAND_FOLLOW_TURN_SPEED);
+  } else {
+    motorRun(HAND_FOLLOW_TURN_SPEED, -HAND_FOLLOW_TURN_SPEED);
+  }
+  delay(turnMs);
+  motorRun(0, 0);
+}
+
 void updateHandFollowingMode() {
-  static int lastDistanceCm = -1;
-  // A single HC-SR04 ping is noisy (echo cross-talk, missed pulses). Averaging
-  // several samples smooths that out instead of reacting to one bad reading.
-  int rawDistanceCm = readSonarAveragedCm();
-  int distanceCm = rawDistanceCm;
+  int rightAngle = 90 - HAND_FOLLOW_SCAN_ANGLE_INTERVAL;
+  int leftAngle = 90 + HAND_FOLLOW_SCAN_ANGLE_INTERVAL;
 
-  bool invalidReading = (rawDistanceCm <= 0 || rawDistanceCm >= MAX_DISTANCE);
-  // HC-SR04 echo cross-talk: while continuously re-triggering on a hand that is
-  // close and slowly moving, a ping occasionally reads back a spurious huge
-  // jump. Left unfiltered, that single bad reading looks like "no target" and
-  // makes the car stop dead instead of continuing to back away. If we were
-  // just tracking something close, ignore the jump and reuse the last good
-  // reading instead of treating it as target loss.
-  bool implausibleJump = (!invalidReading && lastDistanceCm > 0 &&
-                           lastDistanceCm <= HAND_FOLLOW_TARGET_DISTANCE + HAND_FOLLOW_NOISE_JUMP_CM &&
-                           (rawDistanceCm - lastDistanceCm) > HAND_FOLLOW_NOISE_JUMP_CM);
+  // Đọc và xử lý hướng giữa TRƯỚC TIÊN, ra lệnh dừng/tiến/lùi ngay lập tức.
+  // Việc quét thêm 2 bên (bên dưới) chỉ phục vụ xác định hướng khi mất dấu,
+  // không được phép trì hoãn quyết định dừng xe.
+  int distCenter = sampleAtAngle(90);
+  bool validCenter = isValidHandDistance(distCenter);
 
-  if (invalidReading || implausibleJump) {
-    if (lastDistanceCm <= 0) {
-      // resetCarAction();
-      // setBuzzer(false);
+  if (validCenter) {
+    int error = HAND_FOLLOW_TARGET_DISTANCE - distCenter;
+
+    if (abs(error) <= HAND_FOLLOW_TOLERANCE) {
+      Serial.print(F("[HandFollow] C="));
+      Serial.print(distCenter);
+      Serial.println(F(" in tolerance -> stop"));
+      motorRun(0, 0);
+      servo.write(90 + servoOffset);
       return;
     }
-    distanceCm = lastDistanceCm;
-  } else {
-    lastDistanceCm = distanceCm;
-  }
 
-  // if (distanceCm <= HAND_FOLLOW_EMERGENCY_DISTANCE) {
-  //   resetCarAction();
-  //   setBuzzer(true);
-  //   return;
-  // }
+    // Tốc độ tỉ lệ liên tục theo khoảng cách: tay càng xa (gần biên phát
+    // hiện) thì đuổi theo càng nhanh, càng gần thì lùi/tiến càng chậm. Lùi
+    // và tiến dùng min speed riêng vì lực khởi động cần thiết khác nhau.
+    int minSpeed = (error < 0) ? HAND_FOLLOW_FORWARD_MIN_SPEED : HAND_FOLLOW_BACKWARD_MIN_SPEED;
+    int speed = map(constrain(distCenter, 0, HAND_FOLLOW_MAX_DETECT_DISTANCE),
+                     0, HAND_FOLLOW_MAX_DETECT_DISTANCE,
+                     minSpeed, HAND_FOLLOW_MAX_SPEED);
 
-  int error = HAND_FOLLOW_TARGET_DISTANCE - distanceCm;
+    Serial.print(F("[HandFollow] C="));
+    Serial.print(distCenter);
+    Serial.print(F(" error="));
+    Serial.print(error);
+    Serial.print(F(" speed="));
+    Serial.print(speed);
+    Serial.println(error < 0 ? F(" -> FORWARD") : F(" -> BACKWARD"));
 
-  if (abs(error) <= HAND_FOLLOW_TOLERANCE) {
-    // resetCarAction();
-    motorRun(0, 0);
-    // setBuzzer(false);
+    if (error < 0) {
+      motorRun(speed, speed);
+    } else {
+      motorRun(-speed, -speed);
+    }
+    servo.write(90 + servoOffset);
     return;
   }
 
+  // Giữa không thấy tay -> quét thêm 2 bên để tìm hướng lệch.
+  int distRight = sampleAtAngle(rightAngle);
+  int distLeft = sampleAtAngle(leftAngle);
+  bool validRight = isValidHandDistance(distRight);
+  bool validLeft = isValidHandDistance(distLeft);
 
-  int speed = 180;
-			if (distanceCm < 50) {
-				speed = 120;
-			} else if (distanceCm < 70) {
-				speed = 140;
-			} else if (distanceCm < 90) {
-				speed = 160;
-			} else {
-				speed = 180;
-			}
+  Serial.print(F("[HandFollow] scan L="));
+  Serial.print(distLeft);
+  Serial.print(validLeft ? F("(ok)") : F("(--)"));
+  Serial.print(F(" C="));
+  Serial.print(distCenter);
+  Serial.print(F("(--)"));
+  Serial.print(F(" R="));
+  Serial.print(distRight);
+  Serial.println(validRight ? F("(ok)") : F("(--)"));
 
-  if (error < 0) {
-    motorRun(speed, speed);
-  } else if (error > 0) {
-    motorRun(-speed, -speed);
+  if (!validRight && !validLeft) {
+    // Mất dấu ở cả 3 hướng bám gần -> dừng xe và quét toàn dải tìm lại tay.
+    Serial.println(F("[HandFollow] LOST -> stop + full scan"));
+    motorRun(0, 0);
+    int foundAngle = scanForHand();
+    if (foundAngle < 0) {
+      Serial.println(F("[HandFollow] full scan: not found, waiting"));
+      servo.write(90 + servoOffset);
+      return; // Đứng yên chờ; lần gọi kế tiếp của loop sẽ tự quét lại.
+    }
+    Serial.print(F("[HandFollow] full scan: found at angle "));
+    Serial.println(foundAngle);
+    if (foundAngle != 90) {
+      turnTowardAngle(foundAngle);
+    }
+    servo.write(90 + servoOffset);
+    return;
+  }
+
+  servo.write(90 + servoOffset);
+
+  // Ưu tiên bên gần hơn; chỉ xoay khi giữa không thấy nhưng một bên thấy.
+  if (validLeft && (!validRight || distLeft <= distRight)) {
+    Serial.println(F("[HandFollow] center lost -> turn LEFT"));
+    turnTowardAngle(leftAngle);
+  } else {
+    Serial.println(F("[HandFollow] center lost -> turn RIGHT"));
+    turnTowardAngle(rightAngle);
   }
 }
