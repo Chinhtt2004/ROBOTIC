@@ -50,6 +50,22 @@ void setup() {
 }
 
 void loop() {
+  // --- THÊM MỚI: Báo cáo % Pin (1 giây/lần) và Tốc độ (100ms/lần) lên Raspberry Pi ---
+  static u32 lastBatTime = 0;
+  if (millis() - lastBatTime > 1000) {
+    lastBatTime = millis();
+    getBatteryVoltage();
+    Serial.print("BAT:");
+    Serial.println(batteryVoltage);
+  }
+
+  static u32 lastSpdTime = 0;
+  if (millis() - lastSpdTime > 100) {
+    lastSpdTime = millis();
+    Serial.print("SPD:");
+    Serial.println(currentSpeedPWM);
+  }
+
   updateNrf24L01Data();
   if (getNrf24L01Data()) {
     clearNrfFlag();

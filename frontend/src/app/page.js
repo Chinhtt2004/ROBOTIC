@@ -142,17 +142,17 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <p className="text-xs text-slate-400 mb-1">Speed</p>
-                    <p className="font-semibold">0 cm/s</p>
+                    <p className="font-semibold">{telemetry.speed || 0} cm/s</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-400 mb-1">Battery</p>
-                    <p className="font-semibold">{telemetry.battery}%</p>
+                    <p className="font-semibold">{telemetry.battery_percent || 0}%</p>
                   </div>
                 </div>
 
                 <div className="mb-4">
                   <div className="w-full bg-slate-100 rounded-full h-1.5">
-                    <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${telemetry.battery}%` }}></div>
+                    <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${telemetry.battery_percent || 0}%` }}></div>
                   </div>
                 </div>
 
@@ -305,7 +305,7 @@ export default function Dashboard() {
                     <div className="w-14 h-14 rounded-full border-4 border-green-100 border-t-green-500 flex items-center justify-center mb-2">
                       <Battery size={16} className="text-slate-400" />
                     </div>
-                    <span className="font-bold text-sm text-slate-700">{telemetry.battery}%</span>
+                    <span className="font-bold text-sm text-slate-700">{telemetry.battery_percent || 0}%</span>
                     <span className="text-[10px] text-slate-400">Battery</span>
                   </div>
 
@@ -313,7 +313,7 @@ export default function Dashboard() {
                     <div className="w-14 h-14 rounded-full border-4 border-blue-100 border-t-blue-500 flex items-center justify-center mb-2">
                       <Activity size={16} className="text-slate-400" />
                     </div>
-                    <span className="font-bold text-sm text-slate-700">{telemetry.speed} cm/s</span>
+                    <span className="font-bold text-sm text-slate-700">{telemetry.speed || 0} cm/s</span>
                     <span className="text-[10px] text-slate-400">Speed</span>
                   </div>
 

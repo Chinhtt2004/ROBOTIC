@@ -27,12 +27,19 @@ target_x = 0
 target_y = 0
 joy_z = 1 # 1 = nhả, 0 = bấm
 
+# Biến Telemetry
+battery_percent = 0
+battery_voltage = 0.0
+speed_cms = 0.0 # cm/s ước lượng
+arduino_speed_pwm = 0 # PWM nhận từ Arduino ở chế độ tự lái
+serial_buffer = "" # Dùng để ghép các chuỗi bị đứt đoạn từ Arduino
+
 # Danh sách clients đang kết nối WebSocket
 connected_clients = set()
 
 # --- Logic Đóng gói & Gửi dữ liệu qua cáp USB (Chạy liên tục mỗi 50ms) ---
 async def serial_loop():
-    global target_x, target_y
+    global target_x, target_y, battery_percent, battery_voltage, speed_cms, arduino_speed_pwm, serial_buffer
     while True:
         # Cơ chế fail-safe: Nếu mất kết nối/không nhận được lệnh trong 300ms, tự dừng xe
         if time.time() - last_command_time > 0.3:
@@ -42,6 +49,20 @@ async def serial_loop():
         # Giới hạn x, y trong khoảng -512 đến +511
         x = max(-512, min(511, target_x))
         y = max(-512, min(511, target_y))
+
+        # --- Cập nhật Tốc độ ước lượng (Speed cm/s) ---
+        MAX_SPEED_CMS = 50.0 # Vận tốc tối đa ước lượng (50 cm/s)
+        
+        # Nếu đang ở chế độ Manual (S1=1, S2=1, S3=1), tốc độ tính theo Joystick
+        if current_mode["s1"] == 1 and current_mode["s2"] == 1 and current_mode["s3"] == 1:
+            pwm_val = abs(y)
+            if pwm_val < 30: # Deadzone nhỏ
+                speed_cms = 0.0
+            else:
+                speed_cms = round((pwm_val / 512.0) * MAX_SPEED_CMS, 1)
+        else:
+            # Nếu đang ở chế độ tự lái (Auto, Line, Obstacle), tốc độ lấy từ Arduino báo lên
+            speed_cms = round((arduino_speed_pwm / 255.0) * MAX_SPEED_CMS, 1)
 
         # Phục hồi giá trị Analog gốc (0 đến 1023)
         analog_x = round(x + 512)
@@ -64,12 +85,34 @@ async def serial_loop():
                 # Đọc sạch dữ liệu Arduino gửi lên (ví dụ các lệnh Serial.println)
                 # Nếu không đọc, bộ đệm bị đầy sẽ làm đứng cả Arduino lẫn Pi!
                 if ser.in_waiting > 0:
-                    arduino_msg = ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
-                    # In ra log để bạn xem kết quả debug từ Arduino
-                    if arduino_msg.strip():
-                        print(f"[Arduino] {arduino_msg.strip()}")
-                    for line in arduino_msg.splitlines():
-                        car_indicator.handle_arduino_line(line)
+                    chunk = ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
+                    serial_buffer += chunk
+                    
+                    if '\n' in serial_buffer:
+                        lines = serial_buffer.split('\n')
+                        serial_buffer = lines[-1] # Phần bị cắt dở cuối cùng giữ lại
+                        
+                        for line in lines[:-1]:
+                            line = line.strip()
+                            # Gọi hàm xử lý LED của car_indicator
+                            car_indicator.handle_arduino_line(line)
+                            
+                            # Xử lý thông số Pin và Tốc độ
+                            if line.startswith("BAT:"):
+                                try:
+                                    vol = float(line.split(":")[1])
+                                    battery_voltage = vol
+                                    pct = ((vol - 6.4) / (8.4 - 6.4)) * 100
+                                    battery_percent = max(0, min(100, int(pct)))
+                                except:
+                                    pass
+                            elif line.startswith("SPD:"):
+                                try:
+                                    arduino_speed_pwm = int(line.split(":")[1])
+                                except:
+                                    pass
+                            elif line:
+                                print(f"[Arduino] {line}")
                 
                 # Gửi lệnh xuống Arduino
                 ser.write(payload)
@@ -81,7 +124,9 @@ async def serial_loop():
         telemetry_data = {
             "type": "telemetry",
             "connected": success,
-            "battery_percent": 100 if success else 0
+            "battery_percent": battery_percent if success else 0,
+            "voltage": battery_voltage,
+            "speed": speed_cms if success else 0
         }
         if connected_clients:
             msg = json.dumps(telemetry_data)
