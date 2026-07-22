@@ -3,6 +3,14 @@
 
 // Ngoài khoảng này (cm) coi như không phát hiện được tay ở hướng đang xét.
 #define HAND_FOLLOW_MAX_DETECT_DISTANCE 20
+// Cảm biến kém nhạy hơn hẳn ở bên trái (do RX lệch bên phải) nên nới rộng
+// ngưỡng phát hiện riêng cho hướng trái để bù lại việc echo yếu/hay đọc xa
+// hơn thực tế. Tự chỉnh số này theo thực nghiệm.
+#define HAND_FOLLOW_LEFT_MAX_DETECT_DISTANCE 28
+// Bù sai số hệ thống do tâm TX/RX lệch nhau (không đồng tâm): cộng thêm vào
+// khoảng cách đo được trước khi so sánh ngưỡng/target. Tự đo thực tế rồi
+// điền số dương (đọc thấp hơn thực tế) hoặc âm (đọc cao hơn thực tế).
+#define HAND_FOLLOW_DISTANCE_CALIBRATION_CM 0
 #define HAND_FOLLOW_TARGET_DISTANCE 12
 #define HAND_FOLLOW_TOLERANCE 3
 #define HAND_FOLLOW_EMERGENCY_DISTANCE 8
