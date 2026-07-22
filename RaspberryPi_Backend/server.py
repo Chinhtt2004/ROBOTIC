@@ -5,6 +5,8 @@ import time
 import serial
 import websockets
 
+import car_indicator
+
 # --- Khởi tạo Serial Port (Kết nối Pi với Arduino qua cáp USB) ---
 # Trên Raspberry Pi, cổng USB thường là /dev/ttyACM0 hoặc /dev/ttyUSB0
 SERIAL_PORT = '/dev/ttyACM0'  
@@ -66,6 +68,8 @@ async def serial_loop():
                     # In ra log để bạn xem kết quả debug từ Arduino
                     if arduino_msg.strip():
                         print(f"[Arduino] {arduino_msg.strip()}")
+                    for line in arduino_msg.splitlines():
+                        car_indicator.handle_arduino_line(line)
                 
                 # Gửi lệnh xuống Arduino
                 ser.write(payload)
@@ -136,9 +140,12 @@ async def main():
     )
 
 if __name__ == "__main__":
+    car_indicator.init()
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         if is_serial_connected and ser.is_open:
             ser.close()
         print("Shutting down...")
+    finally:
+        car_indicator.cleanup()

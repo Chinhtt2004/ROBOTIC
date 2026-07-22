@@ -6,6 +6,7 @@
 
 float batteryVoltage = 0;
 bool isBuzzered = false;
+static bool isCarMoving = false;
 
 void pinsSetup() {
 	pinMode(PIN_DIRECTION_LEFT, OUTPUT);
@@ -51,6 +52,12 @@ void motorRun(int speedl, int speedr) {
 	digitalWrite(PIN_DIRECTION_RIGHT, dirR);
 	analogWrite(PIN_MOTOR_PWM_LEFT, speedl);
 	analogWrite(PIN_MOTOR_PWM_RIGHT, speedr);
+
+	bool moving = (speedl != 0 || speedr != 0);
+	if (moving != isCarMoving) {
+		isCarMoving = moving;
+		Serial.println(moving ? F("STATE:RUN") : F("STATE:STOP"));
+	}
 }
 
 

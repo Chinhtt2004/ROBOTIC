@@ -15,7 +15,8 @@ static int readSonarAveragedCm() {
   if (validCount == 0) {
     return MAX_DISTANCE;
   }
-  return (int)(sum / validCount);
+  // Bù sai số hệ thống do TX/RX không đồng tâm (xem HAND_FOLLOW_DISTANCE_CALIBRATION_CM).
+  return (int)(sum / validCount) + HAND_FOLLOW_DISTANCE_CALIBRATION_CM;
 }
 
 // Quay servo tới một góc (độ, 90 = giữa xe) và đọc khoảng cách tại đó.
@@ -26,8 +27,19 @@ static int sampleAtAngle(int angleDeg) {
   return readSonarAveragedCm();
 }
 
+static bool isValidHandDistanceWithLimit(int distanceCm, int maxDetectCm) {
+  return distanceCm > 0 && distanceCm < maxDetectCm;
+}
+
 static bool isValidHandDistance(int distanceCm) {
-  return distanceCm > 0 && distanceCm < HAND_FOLLOW_MAX_DETECT_DISTANCE;
+  return isValidHandDistanceWithLimit(distanceCm, HAND_FOLLOW_MAX_DETECT_DISTANCE);
+}
+
+// Góc servo > 90 là hướng trái (xem turnTowardAngle): dùng ngưỡng phát hiện
+// rộng hơn cho hướng này để bù cảm biến kém nhạy bên trái.
+static bool isValidHandDistanceAtAngle(int distanceCm, int angleDeg) {
+  int maxDetectCm = (angleDeg > 90) ? HAND_FOLLOW_LEFT_MAX_DETECT_DISTANCE : HAND_FOLLOW_MAX_DETECT_DISTANCE;
+  return isValidHandDistanceWithLimit(distanceCm, maxDetectCm);
 }
 
 // Quét toàn dải góc, bắt đầu từ giữa và mở rộng dần ra hai bên, để tìm lại
@@ -41,10 +53,10 @@ static int scanForHand() {
        offset += HAND_FOLLOW_LOST_SCAN_STEP) {
     int rightAngle = 90 - offset;
     int leftAngle = 90 + offset;
-    if (isValidHandDistance(sampleAtAngle(rightAngle))) {
+    if (isValidHandDistanceAtAngle(sampleAtAngle(rightAngle), rightAngle)) {
       return rightAngle;
     }
-    if (isValidHandDistance(sampleAtAngle(leftAngle))) {
+    if (isValidHandDistanceAtAngle(sampleAtAngle(leftAngle), leftAngle)) {
       return leftAngle;
     }
   }
@@ -87,9 +99,6 @@ void updateHandFollowingMode() {
     int error = HAND_FOLLOW_TARGET_DISTANCE - distCenter;
 
     if (abs(error) <= HAND_FOLLOW_TOLERANCE) {
-      Serial.print(F("[HandFollow] C="));
-      Serial.print(distCenter);
-      Serial.println(F(" in tolerance -> stop"));
       motorRun(0, 0);
       servo.write(90 + servoOffset);
       return;
@@ -102,14 +111,6 @@ void updateHandFollowingMode() {
     int speed = map(constrain(distCenter, 0, HAND_FOLLOW_MAX_DETECT_DISTANCE),
                      0, HAND_FOLLOW_MAX_DETECT_DISTANCE,
                      minSpeed, HAND_FOLLOW_MAX_SPEED);
-
-    Serial.print(F("[HandFollow] C="));
-    Serial.print(distCenter);
-    Serial.print(F(" error="));
-    Serial.print(error);
-    Serial.print(F(" speed="));
-    Serial.print(speed);
-    Serial.println(error < 0 ? F(" -> FORWARD") : F(" -> BACKWARD"));
 
     if (error < 0) {
       motorRun(speed, speed);
@@ -124,30 +125,16 @@ void updateHandFollowingMode() {
   int distRight = sampleAtAngle(rightAngle);
   int distLeft = sampleAtAngle(leftAngle);
   bool validRight = isValidHandDistance(distRight);
-  bool validLeft = isValidHandDistance(distLeft);
-
-  Serial.print(F("[HandFollow] scan L="));
-  Serial.print(distLeft);
-  Serial.print(validLeft ? F("(ok)") : F("(--)"));
-  Serial.print(F(" C="));
-  Serial.print(distCenter);
-  Serial.print(F("(--)"));
-  Serial.print(F(" R="));
-  Serial.print(distRight);
-  Serial.println(validRight ? F("(ok)") : F("(--)"));
+  bool validLeft = isValidHandDistanceAtAngle(distLeft, leftAngle);
 
   if (!validRight && !validLeft) {
     // Mất dấu ở cả 3 hướng bám gần -> dừng xe và quét toàn dải tìm lại tay.
-    Serial.println(F("[HandFollow] LOST -> stop + full scan"));
     motorRun(0, 0);
     int foundAngle = scanForHand();
     if (foundAngle < 0) {
-      Serial.println(F("[HandFollow] full scan: not found, waiting"));
       servo.write(90 + servoOffset);
       return; // Đứng yên chờ; lần gọi kế tiếp của loop sẽ tự quét lại.
     }
-    Serial.print(F("[HandFollow] full scan: found at angle "));
-    Serial.println(foundAngle);
     if (foundAngle != 90) {
       turnTowardAngle(foundAngle);
     }
@@ -159,10 +146,8 @@ void updateHandFollowingMode() {
 
   // Ưu tiên bên gần hơn; chỉ xoay khi giữa không thấy nhưng một bên thấy.
   if (validLeft && (!validRight || distLeft <= distRight)) {
-    Serial.println(F("[HandFollow] center lost -> turn LEFT"));
     turnTowardAngle(leftAngle);
   } else {
-    Serial.println(F("[HandFollow] center lost -> turn RIGHT"));
     turnTowardAngle(rightAngle);
   }
 }
