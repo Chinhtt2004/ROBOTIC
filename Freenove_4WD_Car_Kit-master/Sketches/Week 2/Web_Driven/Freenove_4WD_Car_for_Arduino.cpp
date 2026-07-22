@@ -5,6 +5,7 @@
 #include "Freenove_4WD_Car_for_Arduino.h"
 
 float batteryVoltage = 0;
+int currentSpeedPWM = 0;
 bool isBuzzered = false;
 static bool isCarMoving = false;
 
@@ -52,6 +53,8 @@ void motorRun(int speedl, int speedr) {
 	digitalWrite(PIN_DIRECTION_RIGHT, dirR);
 	analogWrite(PIN_MOTOR_PWM_LEFT, speedl);
 	analogWrite(PIN_MOTOR_PWM_RIGHT, speedr);
+
+    currentSpeedPWM = (abs(speedl) + abs(speedr)) / 2;
 
 	bool moving = (speedl != 0 || speedr != 0);
 	if (moving != isCarMoving) {

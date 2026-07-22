@@ -39,6 +39,7 @@
 #define BAT_VOL_STANDARD	7.0
 
 extern float batteryVoltage;
+extern int currentSpeedPWM;
 
 void pinsSetup();
 void motorRun(int speedl, int speedr);
