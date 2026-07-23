@@ -1,4 +1,0 @@
-pyserial==3.5
-websockets==12.0
-RPi.GPIO==0.7.1
-spidev==3.6
