@@ -1,7 +1,7 @@
 .PHONY: install run
 
 install:
-	pip3 install -r requirements.txt
+	uv sync
 
 run:
-	python3 server.py
+	uv run server.py
